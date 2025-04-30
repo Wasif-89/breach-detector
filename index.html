@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Security Checker – [Your Name]</title>
+  <style>
+    /* Reset & Base Styles */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+
+    body {
+      background-color: #f4f6f8;
+      color: #333;
+      line-height: 1.6;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
+      max-width: 500px;
+      width: 100%;
+      padding: 30px;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: bold;
+      margin-bottom: 10px;
+      color: #0052cc;
+    }
+
+    p {
+      font-size: 15px;
+      margin-bottom: 30px;
+      color: #666;
+    }
+
+    .input-group {
+      position: relative;
+      margin-bottom: 20px;
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      padding: 14px 45px 14px 15px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      outline: none;
+    }
+
+    .eye-icon {
+      position: absolute;
+      right: 15px;
+      top: 50%;
+      transform: translateY(-50%);
+      cursor: pointer;
+      color: #999;
+      font-size: 18px;
+    }
+
+    .strength-meter {
+      height: 8px;
+      margin-top: 5px;
+      border-radius: 5px;
+      transition: background 0.3s ease;
+    }
+
+    .weak { background: #ff4d4d; }
+    .medium { background: #ffa500; }
+    .strong { background: #5cd6d6; }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      background-color: #0052cc;
+      color: white;
+      font-size: 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.3s ease;
+      margin-top: 15px;
+    }
+
+    button:hover {
+      background-color: #003ca6;
+    }
+
+    button:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+
+    .result {
+      margin-top: 25px;
+      font-weight: bold;
+      font-size: 15px;
+      min-height: 20px;
+    }
+
+    .safe {
+      color: #28a745;
+    }
+
+    .breached {
+      color: #dc3545;
+    }
+
+    .loading {
+      color: #666;
+      font-style: italic;
+    }
+
+    @media (max-width: 600px) {
+      .container {
+        padding: 20px;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>🔒 Security Checker</h1>
+  <p>Check if your email or password has been exposed in data breaches.</p>
+
+  <div class="input-group">
+    <input type="text" id="inputField" placeholder="Enter email or password" oninput="analyzeInput()">
+    <span class="eye-icon" onclick="togglePasswordVisibility()">👁️</span>
+  </div>
+
+  <div class="strength-meter" id="strengthBar"></div>
+
+  <button id="checkBtn" disabled onclick="checkInput()">Check</button>
+  <div class="result" id="result"></div>
+</div>
+
+<script>
+  const input = document.getElementById("inputField");
+  const resultEl = document.getElementById("result");
+  const strengthBar = document.getElementById("strengthBar");
+  const checkBtn = document.getElementById("checkBtn");
+
+  function isEmail(str) {
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return re.test(str.trim());
+  }
+
+  function analyzeInput() {
+    const value = input.value.trim();
+    if (!value) {
+      strengthBar.style.display = "none";
+      checkBtn.disabled = true;
+      resultEl.textContent = "";
+      return;
+    }
+
+    if (isEmail(value)) {
+      strengthBar.style.display = "none";
+    } else {
+      strengthBar.style.display = "block";
+      updatePasswordStrength(value);
+    }
+
+    checkBtn.disabled = false;
+  }
+
+  function updatePasswordStrength(password) {
+    let score = 0;
+
+    if (password.length >= 8) score++;
+    if (/[A-Z]/.test(password)) score++;
+    if (/[a-z]/.test(password)) score++;
+    if (/\d/.test(password)) score++;
+    if (/[^A-Za-z0-9]/.test(password)) score++;
+
+    let strengthClass = "";
+    switch(score) {
+      case 0:
+      case 1:
+        strengthClass = "weak"; break;
+      case 2:
+      case 3:
+        strengthClass = "medium"; break;
+      default:
+        strengthClass = "strong";
+    }
+
+    strengthBar.className = "strength-meter " + strengthClass;
+  }
+
+  function togglePasswordVisibility() {
+    const type = input.type === "password" ? "text" : "password";
+    input.type = type;
+  }
+
+  async function checkInput() {
+    const value = input.value.trim();
+    if (!value) return;
+
+    resultEl.classList.remove('safe', 'breached');
+    resultEl.classList.add('loading');
+    resultEl.textContent = "Checking...";
+    checkBtn.disabled = true;
+
+    try {
+      if (isEmail(value)) {
+        await checkEmailBreaches(value);
+      } else {
+        await checkPasswordBreaches(value);
+      }
+    } catch (error) {
+      resultEl.classList.remove('loading');
+      resultEl.classList.add('breached');
+      resultEl.innerHTML = `Error: ${error.message}`;
+    }
+
+    checkBtn.disabled = false;
+  }
+
+  async function checkEmailBreaches(email) {
+    try {
+      const response = await fetch(`https://haveibeenpwned.com/api/v3/breachedaccount/${encodeURIComponent(email)}`, {
+        headers: {
+          'User-Agent': 'HIBPCheckerApp'
+        }
+      });
+
+      if (response.status === 404) {
+        resultEl.classList.remove('loading');
+        resultEl.classList.add('safe');
+        resultEl.innerHTML = `✅ <strong>${email}</strong> not found in any breaches.`;
+      } else if (response.ok) {
+        const breaches = await response.json();
+        resultEl.classList.remove('loading');
+        resultEl.classList.add('breached');
+        resultEl.innerHTML = `⚠️ <strong>${email}</strong> was found in <strong>${breaches.length}</strong> breaches.`;
+      } else {
+        throw new Error(`HTTP ${response.status}`);
+      }
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async function checkPasswordBreaches(password) {
+    const sha1Hash = await hashPassword(password);
+    const prefix = sha1Hash.substring(0, 5);
+    const suffix = sha1Hash.substring(5).toUpperCase();
+
+    try {
+      const response = await fetch(`https://api.pwnedpasswords.com/range/${prefix}`);
+      const results = await response.text();
+
+      const line = results.split("\n").find(line => line.startsWith(suffix));
+      if (line) {
+        const count = line.split(':')[1];
+        resultEl.classList.remove('loading');
+        resultEl.classList.add('breached');
+        resultEl.innerHTML = `🚨 Password found in <strong>${count}</strong> breaches.`;
+      } else {
+        resultEl.classList.remove('loading');
+        resultEl.classList.add('safe');
+        resultEl.innerHTML = `✅ Password not found in any breaches.`;
+      }
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async function hashPassword(password) {
+    const encoder = new TextEncoder();
+    const buffer = encoder.encode(password);
+    const hashBuffer = await crypto.subtle.digest("SHA-1", buffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, "0")).join("");
+  }
+</script>
+
+</body>
+</html>
